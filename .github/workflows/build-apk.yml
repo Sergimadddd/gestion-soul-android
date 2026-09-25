@@ -43,20 +43,33 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           set -e
-          sed -n '1,80p' app/build.gradle.kts
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/build.gradle.kts")
           s = p.read_text()
-          s2 = s.replace('    alias(libs.plugins.kotlin.android)\n', '')
-          s2 = s2.replace('    id("org.jetbrains.kotlin.android")\n', '')
-          if s2 == s:
-              print("No se encontró la línea del plugin Kotlin; no se modifica el archivo.")
-          else:
-              p.write_text(s2)
-              print("Plugin Kotlin eliminado para compatibilidad con AGP 9.")
+          s = s.replace('    alias(libs.plugins.kotlin.android)\n', '')
+          s = s.replace('    id("org.jetbrains.kotlin.android")\n', '')
+          lines = s.splitlines()
+          out = []
+          skipping = False
+          depth = 0
+          for line in lines:
+              stripped = line.strip()
+              if not skipping and stripped.startswith("kotlinOptions") and "{" in stripped:
+                  skipping = True
+                  depth = stripped.count("{") - stripped.count("}")
+                  continue
+              if skipping:
+                  depth += line.count("{") - line.count("}")
+                  if depth <= 0:
+                      skipping = False
+                  continue
+              out.append(line)
+          s2 = "\n".join(out) + "\n"
+          p.write_text(s2)
+          print("Configuración kotlinOptions eliminada para compatibilidad con AGP 9.")
           PY
-          sed -n '1,40p' app/build.gradle.kts
+          sed -n '1,50p' app/build.gradle.kts
 
       - name: Set up Java
         uses: actions/setup-java@v5
