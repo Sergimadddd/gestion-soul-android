@@ -1,0 +1,36 @@
+name: Build Gestión Soul APK
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reconstruct project archive
+        run: |
+          cat payload/part*.b64 > /tmp/project.b64
+          base64 -d /tmp/project.b64 > /tmp/project.zip
+          unzip -q /tmp/project.zip -d /tmp/project
+          cp -a /tmp/project/gestion-soul-android/. .
+          rm -rf payload /tmp/project /tmp/project.zip /tmp/project.b64
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-37" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Build release APK
+        run: gradle :app:assembleRelease --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gestion-soul-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
