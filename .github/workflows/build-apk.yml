@@ -1,0 +1,73 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract project
+        shell: bash
+        run: |
+          set -e
+          rm -rf app-src
+          mkdir -p app-src
+          unzip -q Gestion-Soul-Android-Offline.zip -d app-src
+          echo "Contenido extraído:"
+          find app-src -maxdepth 3 -type f | sort | head -200
+
+      - name: Locate Gradle project
+        shell: bash
+        run: |
+          set -e
+          GRADLEW="$(find app-src -type f -name gradlew -print -quit)"
+          if [ -z "$GRADLEW" ]; then
+            echo "::error::No se encontró gradlew dentro del proyecto extraído."
+            exit 1
+          fi
+          PROJECT_DIR="$(dirname "$GRADLEW")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          chmod +x "$GRADLEW"
+          echo "Proyecto Gradle: $PROJECT_DIR"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Build debug APK
+        shell: bash
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -e
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Collect APK
+        shell: bash
+        run: |
+          set -e
+          mkdir -p release
+          find "$PROJECT_DIR" -type f -name "*.apk" -print -exec cp {} release/ \;
+          if ! find release -type f -name "*.apk" | grep -q .; then
+            echo "::error::La compilación terminó pero no se encontró ningún APK."
+            exit 1
+          fi
+          ls -lh release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gestion-soul-android-apk
+          path: release/*.apk
+          if-no-files-found: error
