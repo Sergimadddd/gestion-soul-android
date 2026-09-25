@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          PROJECT_DIR="$(find app-src -type f -name 'settings.gradle.kts' -o -name 'settings.gradle' | head -1 | xargs -r dirname)"
+          PROJECT_DIR="$(find app-src -type f \( -name 'settings.gradle.kts' -o -name 'settings.gradle' \) | head -1 | xargs -r dirname)"
           if [ -z "$PROJECT_DIR" ]; then
             echo "::error::No se encontró settings.gradle(.kts) dentro del proyecto extraído."
             exit 1
@@ -37,6 +37,26 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Proyecto Gradle: $PROJECT_DIR"
           ls -la "$PROJECT_DIR"
+
+      - name: Compatibility patch for AGP 9 built-in Kotlin
+        shell: bash
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -e
+          sed -n '1,80p' app/build.gradle.kts
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          s2 = s.replace('    alias(libs.plugins.kotlin.android)\n', '')
+          s2 = s2.replace('    id("org.jetbrains.kotlin.android")\n', '')
+          if s2 == s:
+              print("No se encontró la línea del plugin Kotlin; no se modifica el archivo.")
+          else:
+              p.write_text(s2)
+              print("Plugin Kotlin eliminado para compatibilidad con AGP 9.")
+          PY
+          sed -n '1,40p' app/build.gradle.kts
 
       - name: Set up Java
         uses: actions/setup-java@v5
