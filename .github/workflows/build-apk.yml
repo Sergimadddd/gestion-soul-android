@@ -49,23 +49,8 @@ jobs:
           s = p.read_text()
           s = s.replace('    alias(libs.plugins.kotlin.android)\n', '')
           s = s.replace('    id("org.jetbrains.kotlin.android")\n', '')
-          lines = s.splitlines()
-          out = []
-          skipping = False
-          depth = 0
-          for line in lines:
-              stripped = line.strip()
-              if not skipping and stripped.startswith("kotlinOptions") and "{" in stripped:
-                  skipping = True
-                  depth = stripped.count("{") - stripped.count("}")
-                  continue
-              if skipping:
-                  depth += line.count("{") - line.count("}")
-                  if depth <= 0:
-                      skipping = False
-                  continue
-              out.append(line)
-          s2 = "\n".join(out) + "\n"
+          import re
+          s2 = re.sub(r'(?ms)^\s*kotlinOptions\s*\{.*?^\s*\}\s*', '', s)
           p.write_text(s2)
           print("Configuración kotlinOptions eliminada para compatibilidad con AGP 9.")
           PY
